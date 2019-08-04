@@ -138,12 +138,15 @@ func stopProcs(sig os.Signal) error {
 }
 
 // spawn all procs.
-func startProcs(sc <-chan os.Signal, rpcCh <-chan *rpcMessage, exitOnError bool) error {
+func startProcs(sc <-chan os.Signal, rpcCh <-chan *rpcMessage, interval time.Duration, exitOnError bool) error {
 	var wg sync.WaitGroup
 	errCh := make(chan error, 1)
 
-	for proc := range procs {
-		startProc(proc, &wg, errCh)
+	for _, k := range entries {
+		startProc(k, &wg, errCh)
+		if interval > 0 {
+			time.Sleep(interval)
+		}
 	}
 
 	allProcsDone := make(chan struct{}, 1)

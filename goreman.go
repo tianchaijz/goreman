@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v2"
@@ -64,9 +65,11 @@ type procInfo struct {
 
 // process informations named with proc.
 var procs map[string]*procInfo
+var entries []string
 
 // filename of Procfile.
 var procfile = flag.String("f", "Procfile", "proc file")
+var interval = flag.Duration("i", 0, "interval between starting each process")
 
 // rpc port number.
 var port = flag.Uint("p", defaultPort(), "port")
@@ -90,7 +93,8 @@ var maxProcNameLength = 0
 var re = regexp.MustCompile(`\$([a-zA-Z]+[a-zA-Z0-9_]+)`)
 
 type config struct {
-	Procfile string `yaml:"procfile"`
+	Procfile string        `yaml:"procfile"`
+	Interval time.Duration `yaml:"interval"`
 	// Port for RPC server
 	Port     uint   `yaml:"port"`
 	BaseDir  string `yaml:"basedir"`
@@ -109,6 +113,7 @@ func readConfig() *config {
 	}
 
 	cfg.Procfile = *procfile
+	cfg.Interval = *interval
 	cfg.Port = *port
 	cfg.BaseDir = *basedir
 	cfg.BasePort = *baseport
@@ -149,6 +154,7 @@ func readProcfile(cfg *config) error {
 		}
 		p.cond = sync.NewCond(&p.mu)
 		procs[k] = p
+		entries = append(entries, k)
 		if len(k) > maxProcNameLength {
 			maxProcNameLength = len(k)
 		}
@@ -234,7 +240,7 @@ func start(ctx context.Context, sig <-chan os.Signal, cfg *config) error {
 	godotenv.Load()
 	rpcChan := make(chan *rpcMessage, 10)
 	go startServer(ctx, rpcChan, cfg.Port)
-	procsErr := startProcs(sig, rpcChan, cfg.ExitOnError)
+	procsErr := startProcs(sig, rpcChan, cfg.Interval, cfg.ExitOnError)
 	return procsErr
 }
 
